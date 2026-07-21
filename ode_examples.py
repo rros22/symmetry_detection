@@ -10,7 +10,6 @@ from matplotlib import pyplot as plt
 import debugging as db
 
 # ODEs
-
 def bernoulli_ode(x,u):
      """
         Bernoulli equation du/dx = 2*u/x - u^2*x^2
@@ -105,7 +104,6 @@ def grad_abel_ode(x, u):
     return np.stack([-df_dx, -df_du, np.ones_like(x)], axis=0)
 
 # Examples and default parameters
-
 ODES = {
     "bernoulli": bernoulli_ode,
     "rational": rational_ode,
@@ -149,19 +147,19 @@ ODE_DEFAULTS = {
         "method": "RK45",
     },
     "riccati": {
-        "x_start": 1.0,
-        "x_end": 5.0,
-        "initial_conditions": np.linspace(0.5, 3, 10),
+        "x_start": 0.1,
+        "x_end": 0.5,
+        "initial_conditions": np.linspace(-50, 106, 10),
         "initial_condition": 1.0,
-        "num_points": 40,
+        "num_points": 30,
         "method": "RK45",
     },
     "scaling": {
-        "x_start": 1.0,
-        "x_end": 10.0,
-        "initial_conditions": np.linspace(1, 5, 15),
+        "x_start": 0.1,
+        "x_end": 2,
+        "initial_conditions": np.linspace(0.1, 2, 15),
         "initial_condition": 1.0,
-        "num_points": 50,
+        "num_points": 2000,
         "method": "RK45",
     },
     "abel": {
@@ -174,10 +172,8 @@ ODE_DEFAULTS = {
     },
 }
 
-
-
 # Generate a full trajectory
-def generate_trajectory(ode_name, x_start=1, x_end=10, u0=1, num_points=30, method="RK45"):
+def _generate_trajectory(ode_name, x_start, x_end, u0, num_points, method):
     """
         Integrate one of the differential equations in the examples
     """
@@ -212,14 +208,19 @@ def generate_equation_manifold(ode_name, x_start=1, x_end=7, initial_conditions=
     trajectories = []
 
     for ic in initial_conditions:
-        solution = generate_trajectory(ode_name, x_start=x_start, x_end=x_end, u0=ic, num_points=num_points, method=method)
-        embedding = np.array([solution.t, solution.y[0], ODES[ode_name](solution.t, solution.y[0])])
-        trajectories.append(embedding)
+        solution = _generate_trajectory(ode_name, x_start=x_start, x_end=x_end, u0=ic, num_points=num_points, method=method)
+
+        if solution.success:
+            embedding = np.array([solution.t, solution.y[0], ODES[ode_name](solution.t, solution.y[0])])
+            trajectories.append(embedding)
+        
+        else:
+            raise RuntimeError(f"Integration failed for initial condition {ic}: {solution.message}")
 
     return np.array(trajectories)
 
 # CLI Tooling (Only runs when executed as main)
-def get_args():
+def _get_args():
     """
         Isolates parser
     """
@@ -227,7 +228,7 @@ def get_args():
     parser.add_argument(
         "--ode",
         choices = ODES.keys(),
-        default = "bernoulli",
+        default = "scaling",
         help = "Name of the ODE to solve (default: bernoulli)"
     )
 
@@ -244,7 +245,7 @@ def get_args():
     # Get the dictionary of default arguments for the requested ODE
     defaults = ODE_DEFAULTS.get(args.ode, {})
 
-# Merge: Override default arguments with those from the CLI
+    # Merge: Override default arguments with those from the CLI
     args.start = args.start if args.start is not None else defaults.get("x_start", 1.0)
     args.end = args.end if args.end is not None else defaults.get("x_end", 7.0)
     args.initial_condition = args.initial_condition if args.initial_condition is not None else defaults.get("initial_condition", 1.0)
@@ -264,33 +265,9 @@ def main():
     print("Running as main")
 
     # Extract arguments
-    args = get_args()
+    args = _get_args()
 
-    # # Test 1: Generate trajectory
-    # solution = generate_trajectory(
-    #     ode_name=args.ode,
-    #     x_start = args.start,
-    #     x_end = args.end,
-    #     u0 = args.initial_condition,
-    #     num_points=args.num_points,
-    #     method = args.method
-    # )
-
-    # print(f"Integrating {args.ode} ODE using {args.method}")
-    # print(f"Grid : ({args.start}, {args.end})")
-    # print(f"Initial condition: {args.initial_condition}")
-    # print(f"Number of points: {args.num_points}")
-
-    # if solution.success:
-    #     plt.scatter(solution.t, solution.y[0], label= f"{args.ode}_ode")
-    #     plt.xlabel("x")
-    #     plt.ylabel("u")
-    #     plt.show()
-
-    # else:
-    #     print(f"Solver failed: {solution.message}")
-    
-    # Test 2: Generate equation manifold
+    # Test: Generate equation manifold
     X = generate_equation_manifold(
         ode_name=args.ode,
         x_start = args.start,
@@ -299,7 +276,7 @@ def main():
         num_points=args.num_points,
         method = args.method
     )
-    
+
     fig = plt.figure(figsize=(6,6))
     ax0 = fig.add_subplot(131, projection='3d')
     ax1 = fig.add_subplot(132, projection='3d')
@@ -330,9 +307,15 @@ def main():
     p_grid_max = np.max(P_grid)
 
     # Evaluate analytic normal field on the surface
-    N = NORMALS[args.ode](X_grid,U_grid)
-    fig, ax = db.scaled_3D_quiver(X_grid, U_grid, P_grid, N, (x_min, x_max), (u_min, u_max), (p_grid_min, p_grid_max))
-
+    fig2, ax3 = db.scaled_3D_quiver_surface(
+        X_grid, U_grid, P_grid, NORMALS[args.ode](X_grid,U_grid),
+        (x_min, x_max), (u_min, u_max), (p_grid_min, p_grid_max),
+    )
+    fig3, ax4 = db.scaled_3D_quiver_trajectories(
+        X, NORMALS[args.ode],
+        (x_min, x_max), (u_min, u_max), (p_traj_min, p_traj_max),
+    )
+    
     # Plotting
     ax0.plot_surface(X_grid,U_grid,P_grid, cmap='coolwarm')
 

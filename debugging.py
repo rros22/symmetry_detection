@@ -2,7 +2,6 @@ import numpy as np
 from rich.console import Console
 from rich.table import Table
 from matplotlib import pyplot as plt
-from matplotlib.ticker import FuncFormatter
 
 # Printing for debbuging
 def print_configuration(ode_name, x_start, x_end, initial_conditions, num_points, method):
@@ -19,10 +18,10 @@ def print_configuration(ode_name, x_start, x_end, initial_conditions, num_points
     print("=" * width)
     print(f"{title.center(width, ' ')}")
     print("=" * width)
-    print(f"  {"Domain (X Span)":<25} : [{x_start}, {x_end}]")
-    print(f"  {"Points per Trajectory":<25} : {num_points}")
-    print(f"  {"Initial Conditions":<25} : {ic_str}")
-    print(f"  {"Solver Method":<25} : {method}")
+    print(f"  {'Domain (X Span)':<25} : [{x_start}, {x_end}]")
+    print(f"  {'Points per Trajectory':<25} : {num_points}")
+    print(f"  {'Initial Conditions':<25} : {ic_str}")
+    print(f"  {'Solver Method':<25} : {method}")
     print("-" * width)
 
 def print_configuration_rich(ode_name, x_start, x_end, initial_conditions, num_points, method):
@@ -43,65 +42,67 @@ def print_configuration_rich(ode_name, x_start, x_end, initial_conditions, num_p
 
 # Plots
 
-def _set_data_tick_labels(ax, x_range, u_range, p_range):
-    """Show physical x, u, p values on axes that live in [0, 1]."""
-    ax.xaxis.set_major_formatter(
-        FuncFormatter(lambda v, _: f"{x_range[0] + v * (x_range[1] - x_range[0]):.2g}")
-    )
-    ax.yaxis.set_major_formatter(
-        FuncFormatter(lambda v, _: f"{u_range[0] + v * (u_range[1] - u_range[0]):.2g}")
-    )
-    ax.zaxis.set_major_formatter(
-        FuncFormatter(lambda v, _: f"{p_range[0] + v * (p_range[1] - p_range[0]):.2g}")
-    )
-
-
-def scaled_3D_quiver(X_grid, U_grid, P_grid, N, x_range, u_range, p_range):
-    """
-    Plot a surface with its normal field in (x, u, p) space.
-
-    mplot3d quiver has no ``angles='xy'`` equivalent. Rescaling vector
-    components in data space does not fix directions for the same reason that
-    2D ``angles='uv'`` ignores axis scaling. The fix is to plot surface and
-    normals in unit-cube coordinates [0, 1]^3 with ``set_box_aspect((1,1,1))``,
-    then label ticks in physical units.
-    """
-    fig = plt.figure(figsize=(6, 6))
-    ax = fig.add_subplot(111, projection='3d')
-
+def _unit_cube_transform(X, U, P, N, x_range, u_range, p_range):
     spans = np.array([
         x_range[1] - x_range[0],
         u_range[1] - u_range[0],
         p_range[1] - p_range[0],
     ])
+    Xn = (X - x_range[0]) / spans[0]
+    Un = (U - u_range[0]) / spans[1]
+    Pn = (P - p_range[0]) / spans[2]
+    Nn = N * spans[:, np.newaxis, np.newaxis]
+    return Xn, Un, Pn, Nn
 
-    # Scale points down to unit cube
-    Xn = (X_grid - x_range[0]) / (x_range[1] - x_range[0])
-    Un = (U_grid - u_range[0]) / (u_range[1] - u_range[0])
-    Pn = (P_grid - p_range[0]) / (p_range[1] - p_range[0])
 
-    # Scale vector field accordingly
-    Nn = N* spans[:, np.newaxis, np.newaxis]
-    print(Nn.shape)
-    ax.plot_surface(Xn, Un, Pn, cmap='coolwarm')
-    ax.quiver(
-        Xn, Un, Pn,
-        Nn[0], Nn[1], Nn[2],
-        normalize=True,
-        length=0.08,
-    )
-
-    # Set new axis limits
+def _finish_3d_plot(ax):
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
     ax.set_zlim(0, 1)
-
-    # Set aspect ratio to 1 so that the vectors look normal
     ax.set_box_aspect((1, 1, 1))
-    # _set_data_tick_labels(ax, x_range, u_range, p_range)
-
     ax.set_xlabel('x')
     ax.set_ylabel('u')
     ax.set_zlabel('p')
+
+
+def scaled_3D_quiver_surface(X_grid, U_grid, P_grid, N, x_range, u_range, p_range):
+    """Plot an equation manifold surface with its normal field."""
+    fig = plt.figure(figsize=(6, 6))
+    ax = fig.add_subplot(111, projection='3d')
+
+    Xn, Un, Pn, Nn = _unit_cube_transform(X_grid, U_grid, P_grid, N, x_range, u_range, p_range)
+    ax.plot_surface(Xn, Un, Pn, cmap='coolwarm')
+    ax.quiver(Xn, Un, Pn, Nn[0], Nn[1], Nn[2], normalize=True, length=0.08, color='k', alpha=0.3)
+    _finish_3d_plot(ax)
+
+    return fig, ax
+
+
+def scaled_3D_quiver_trajectories(X, normal_fn, x_range, u_range, p_range, *, style="lines"):
+    """
+    Plot integrated trajectories with their normal field.
+
+    X has shape (n_trajectories, 3, m_points) with rows (x, u, p).
+    style: "lines" plots each trajectory as a curve; "scatter" plots all sample points.
+    """
+    if style not in ("lines", "scatter"):
+        raise ValueError(f"style must be 'lines' or 'scatter', got {style!r}")
+
+    x = X[:, 0]
+    u = X[:, 1]
+    p = X[:, 2]
+    N = normal_fn(x, u)
+
+    fig = plt.figure(figsize=(6, 6))
+    ax = fig.add_subplot(111, projection='3d')
+
+    Xn, Un, Pn, Nn = _unit_cube_transform(x, u, p, N, x_range, u_range, p_range)
+    if style == "lines":
+        for i in range(Xn.shape[0]):
+            ax.plot(Xn[i], Un[i], Pn[i], color='C0', linewidth=1.0)
+    else:
+        ax.scatter(Xn.ravel(), Un.ravel(), Pn.ravel(), color='C0', s=8, alpha=0.6)
+    ax.quiver(Xn, Un, Pn, Nn[0], Nn[1], Nn[2], normalize=True, length=0.08, color='k', alpha=0.3)
+    _finish_3d_plot(ax)
 
     return fig, ax

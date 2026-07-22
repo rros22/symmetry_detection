@@ -5,6 +5,7 @@
 import numpy as np
 from numpy.polynomial.chebyshev import chebder, chebval
 
+
 """
     Monomial basis functions and their derivatives.
 """
@@ -50,6 +51,15 @@ def chebyshev_bf_dx(x, u, m, n):
 
 def chebyshev_bf_du(x, u, m, n):
     return T(m, x) * dT(n, u)
+
+"""
+    Dictionary of basis functions and their derivatives. The keys are the names of the basis functions, and the values are tuples of the form (basis_function, derivative_wrt_x, derivative_wrt_u).
+"""
+
+BASIS_FUNCTIONS = {
+    "monomial": (monomial_bf, monomial_bf_dx, monomial_bf_du),
+    "chebyshev": (chebyshev_bf, chebyshev_bf_dx, chebyshev_bf_du),
+}
 
 
 # Test chevyshev polynomials

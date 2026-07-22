@@ -62,13 +62,25 @@ BASIS_FUNCTIONS = {
 }
 
 # Reconstruct characteristic functions of the learnt vector field from basis function family, list of basis function params, and list of learnt coefficients.
-def characteristic_functions(param_list, coeff_list, basis_type):
-
-    xi = 0
-    eta = 0
-    zeta = 0
+def characteristic_functions(L, L_x, L_u, P, coeffs):
+    # No testing for now
+    # The first half of the coefficient list belongs to the first characteristic function
+    coeff_no = len(coeffs)
+    if coeff_no % 2 != 0:
+        raise ValueError(f"The number of coefficients is {coeff_no} which is not an even number.")
     
-    return np.vstack((xi,eta,zeta))
+    print(f"Xi coefficients {coeffs[0:int(coeff_no/2)]}")
+    print(f"Eta coefficients {coeffs[int(coeff_no/2):]}")
+
+    xi_coeffs = coeffs[0:int(coeff_no/2)]
+    eta_coeffs = coeffs[int(coeff_no/2):]
+    
+    # Compute the characteristic functions
+    xi = L.T@xi_coeffs
+    eta = L.T@eta_coeffs
+    zeta = L_x.T@eta_coeffs + (L_u.T@eta_coeffs - L_x.T@xi_coeffs)@P - (L_u.T@xi_coeffs)@P@P
+
+    return xi, eta, zeta
 
 
 # Test chevyshev polynomials

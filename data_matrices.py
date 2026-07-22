@@ -1,6 +1,7 @@
 import basis_functions as bf
 import generate_trajectories as gtr
 import numpy as np
+from scipy.linalg import svd
 from matplotlib import pyplot as plt
 
 """
@@ -126,7 +127,7 @@ def bf_matrices(X_stacked, basis_type="monomial", param_range=(0, 3), param_list
     L_x = _build_matrix(funcs[1])
     L_u = _build_matrix(funcs[2])
 
-    return L, L_x, L_u 
+    return L, L_x, L_u
 
 def normal_vec_diag_matrices(N):
     N_x = np.diag(N[0])
@@ -140,7 +141,7 @@ def p_diag_matrix(X_stacked):
 
 def G_matrix(X_stacked, N, basis_type="monomial", param_range=(0, 3), param_list=None):
     # Evaluate basis function matrices and diagonals
-    L, L_x, L_u = bf_matrices(X_stacked, basis_type, param_range, param_list)
+    L, L_x, L_u  = bf_matrices(X_stacked, basis_type, param_range, param_list)
     N_x, N_u, N_ux = normal_vec_diag_matrices(N)
     P = p_diag_matrix(X_stacked)
 
@@ -151,30 +152,38 @@ def G_matrix(X_stacked, N, basis_type="monomial", param_range=(0, 3), param_list
     # Stack parts
     G = np.vstack((G_1,G_2))
 
-    return G
+    return G, L, L_x, L_u, P 
 
 if __name__ == "__main__":
     # Test the full symmetry detection null space problem on the rational equation with rotational symmetry.
     # 0. Define parameters
     ode_name = "rational"
+    basis_type="monomial"
     
     # 1. Generate data
-    initial_conditions = np.linspace(1,7,10)
-    X = gtr.generate_equation_manifold(ode_name=ode_name, x_start=0.75, x_end=2, initial_conditions=initial_conditions, num_points=50, method="RK45")
+    initial_conditions = np.linspace(1,2,6)
+    X = gtr.generate_equation_manifold(ode_name=ode_name, x_start=1, x_end=7, initial_conditions=initial_conditions, num_points=50, method="RK45")
     X_stacked = _concatenate_trajectories(X)
     N = gtr.NORMALS[ode_name](X_stacked[0], X_stacked[1])
 
     # 2. Construct the G matrix
-    G = G_matrix(X_stacked, N, basis_type="monomial", param_range=(0, 1), param_list=None)
+    G, L, L_x, L_u, P  = G_matrix(X_stacked, N, basis_type=basis_type, param_range=(0, 1), param_list=None)
 
     # 3. Solve the null space problem (on G transposed) using the SVD
-    U,S,Vh = np.linalg.svd(G.T)
+    U,S,Vt = svd(G.T)
+    idx = np.argmin(S)
 
     # 4. Plot singular value spectrum
     fig, ax = plt.subplots(1,2)
     ax[0].semilogy(S,marker='o', linestyle='None')
 
-    # 5. Plot the trajectories and the recovered generator
+    # 5. Plot the trajectories and the reconstructed vector field
+    xi, eta, zeta = bf.characteristic_functions(L, L_x, L_u, P, Vt[idx, :])
+    print(Vt[idx, :])
+
+    ax[1].quiver(X_stacked[0], X_stacked[1], xi, eta, angles='xy',scale=20,scale_units='xy')
+    ax[1].set_box_aspect(1)
+
     for trajectory in X:
         ax[1].plot(trajectory[0], trajectory[1])
     plt.show()

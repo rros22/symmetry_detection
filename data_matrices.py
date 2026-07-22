@@ -126,14 +126,14 @@ def bf_matrices(X_stacked, basis_type="monomial", param_range=(0, 3), param_list
     L_x = _build_matrix(funcs[1])
     L_u = _build_matrix(funcs[2])
 
-    print(L.shape)
-    print(L_x.shape)
-    print(L_u.shape)
-    
     return L, L_x, L_u 
 
-# def normal_vec_diag_matrices():
-#     return None
+def normal_vec_diag_matrices(N):
+    N_x = np.diag(N[0])
+    N_u = np.diag(N[1])
+    N_ux = np.diag(N[2])
+
+    return N_x, N_u, N_ux
 
 def p_diag_matrix(X_stacked):
     return np.diag(X_stacked[-1])
@@ -144,6 +144,11 @@ if __name__ == "__main__":
     X = gtr.generate_equation_manifold(ode_name="bernoulli", x_start=0.2, x_end=1.2, initial_conditions=initial_conditions, num_points=10, method="RK45")
     X_stacked = _concatenate_trajectories(X)
     P = p_diag_matrix(X_stacked)
-    print(f"Shape of P = {P.shape}")
     L, L_x, L_u = bf_matrices(X_stacked, basis_type="monomial", param_range=(0, 3))
-    print(f"X shape: {X.shape}")
+
+    # Construct matrix of normals
+    N = gtr.NORMALS["bernoulli"](X_stacked[0], X_stacked[1])
+    N_x, N_u, N_ux = normal_vec_diag_matrices(N)
+    
+    
+   

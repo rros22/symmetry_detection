@@ -61,6 +61,15 @@ BASIS_FUNCTIONS = {
     "chebyshev": (chebyshev_bf, chebyshev_bf_dx, chebyshev_bf_du),
 }
 
+# Reconstruct characteristic functions of the learnt vector field from basis function family, list of basis function params, and list of learnt coefficients.
+def characteristic_functions(param_list, coeff_list, basis_type):
+
+    xi = 0
+    eta = 0
+    zeta = 0
+    
+    return np.vstack((xi,eta,zeta))
+
 
 # Test chevyshev polynomials
 if __name__ == "__main__":

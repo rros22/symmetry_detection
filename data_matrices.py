@@ -1,6 +1,7 @@
 import basis_functions as bf
 import generate_trajectories as gtr
 import numpy as np
+from matplotlib import pyplot as plt
 
 """
     Contains functions that generate matrices, which evaluate the basis functions and their derivatives at the points of the trajectories.
@@ -22,8 +23,7 @@ import numpy as np
 # For synthetically generated trajectories, the X matrix needs to be flattened into a 2D array of shape (num_dimension, num_traj * num_points).
 def _concatenate_trajectories(X):
     """
-    Flattens 3D trajectories (num_traj, state_dim, num_points) 
-    into a 2D matrix (state_dim, num_traj * num_points).
+    Flattens 3D trajectories (num_traj, state_dim, num_points) into a 2D matrix (state_dim, num_traj * num_points).
     """
     num_traj, state_dim, num_pts = X.shape
     return X.transpose(1, 0, 2).reshape(state_dim, -1)
@@ -136,19 +136,47 @@ def normal_vec_diag_matrices(N):
     return N_x, N_u, N_ux
 
 def p_diag_matrix(X_stacked):
-    return np.diag(X_stacked[-1])
+    return np.diag(X_stacked[2])
+
+def G_matrix(X_stacked, N, basis_type="monomial", param_range=(0, 3), param_list=None):
+    # Evaluate basis function matrices and diagonals
+    L, L_x, L_u = bf_matrices(X_stacked, basis_type, param_range, param_list)
+    N_x, N_u, N_ux = normal_vec_diag_matrices(N)
+    P = p_diag_matrix(X_stacked)
+
+    #Construct parts of G
+    G_1 = L@N_x - (L_x + L_u@P)@P@N_ux
+    G_2 = L@N_u + (L_x + L_u@P)@N_ux
+
+    # Stack parts
+    G = np.vstack((G_1,G_2))
+
+    return G
 
 if __name__ == "__main__":
-    # Test the basis evaluation function
-    initial_conditions = np.linspace(0.1,1,100)
-    X = gtr.generate_equation_manifold(ode_name="bernoulli", x_start=0.2, x_end=1.2, initial_conditions=initial_conditions, num_points=10, method="RK45")
-    X_stacked = _concatenate_trajectories(X)
-    P = p_diag_matrix(X_stacked)
-    L, L_x, L_u = bf_matrices(X_stacked, basis_type="monomial", param_range=(0, 3))
-
-    # Construct matrix of normals
-    N = gtr.NORMALS["bernoulli"](X_stacked[0], X_stacked[1])
-    N_x, N_u, N_ux = normal_vec_diag_matrices(N)
+    # Test the full symmetry detection null space problem on the rational equation with rotational symmetry.
+    # 0. Define parameters
+    ode_name = "rational"
     
+    # 1. Generate data
+    initial_conditions = np.linspace(1,7,10)
+    X = gtr.generate_equation_manifold(ode_name=ode_name, x_start=0.75, x_end=2, initial_conditions=initial_conditions, num_points=50, method="RK45")
+    X_stacked = _concatenate_trajectories(X)
+    N = gtr.NORMALS[ode_name](X_stacked[0], X_stacked[1])
+
+    # 2. Construct the G matrix
+    G = G_matrix(X_stacked, N, basis_type="monomial", param_range=(0, 1), param_list=None)
+
+    # 3. Solve the null space problem (on G transposed) using the SVD
+    U,S,Vh = np.linalg.svd(G.T)
+
+    # 4. Plot singular value spectrum
+    fig, ax = plt.subplots(1,2)
+    ax[0].semilogy(S,marker='o', linestyle='None')
+
+    # 5. Plot the trajectories and the recovered generator
+    for trajectory in X:
+        ax[1].plot(trajectory[0], trajectory[1])
+    plt.show()
     
    

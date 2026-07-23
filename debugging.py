@@ -62,12 +62,14 @@ def compute_data_range(X):
 
     return x_range, u_range, p_range
 
-def _unit_cube_transform(X, N, x_range, u_range, p_range):
+def _unit_cube_transform(X, N, x_range, u_range, p_range, mode="normal"):
     """
-    Normalize coordinates to the unit cube and scale normal components.
+    Mode can be "normal" or "tangent". First check if mode is any of the two.
+    """
+    if mode not in ["normal", "tangent"]:
+        raise ValueError(f"Mode must be 'normal' or 'tangent', got {mode!r}")
+    
 
-    X and N have shape (3, ...) with rows (x, u, p) and normal components.
-    """
     mins = np.array([x_range[0], u_range[0], p_range[0]])
     spans = np.array([
         x_range[1] - x_range[0],
@@ -76,7 +78,10 @@ def _unit_cube_transform(X, N, x_range, u_range, p_range):
     ])
     broadcast = (3,) + (1,) * (X.ndim - 1)
     Xn = (X - mins.reshape(broadcast)) / spans.reshape(broadcast)
-    Nn = N * spans.reshape(broadcast)
+    if mode == "normal":
+        Nn = N * spans.reshape(broadcast)
+    elif mode == "tangent":
+        Nn = N / spans.reshape(broadcast)
     return Xn, Nn
 
 
@@ -90,13 +95,13 @@ def _finish_3d_plot(ax):
     ax.set_zlabel('p')
 
 
-def scaled_3D_quiver_surface(X_grid, U_grid, P_grid, N, x_range, u_range, p_range):
+def scaled_3D_quiver_surface(X_grid, U_grid, P_grid, N, x_range, u_range, p_range, mode="normal"):
     """Plot an equation manifold surface with its normal field."""
     fig = plt.figure(figsize=(6, 6))
     ax = fig.add_subplot(111, projection='3d')
 
     X_stacked = np.stack([X_grid, U_grid, P_grid], axis=0)
-    Xn, Nn = _unit_cube_transform(X_stacked, N, x_range, u_range, p_range)
+    Xn, Nn = _unit_cube_transform(X_stacked, N, x_range, u_range, p_range, mode=mode)
     ax.plot_surface(Xn[0], Xn[1], Xn[2], cmap='coolwarm')
     ax.quiver(Xn[0], Xn[1], Xn[2], Nn[0], Nn[1], Nn[2], normalize=True, length=0.08, color='k', alpha=0.3)
     _finish_3d_plot(ax)
@@ -104,7 +109,7 @@ def scaled_3D_quiver_surface(X_grid, U_grid, P_grid, N, x_range, u_range, p_rang
     return fig, ax
 
 
-def scaled_3D_quiver(X_stacked, V, style='scatter', num_points=None):
+def scaled_3D_quiver(X_stacked, V, style='scatter', num_points=None, mode="normal"):
     """
     Plot stacked trajectory points with a vector field.
 
@@ -126,7 +131,7 @@ def scaled_3D_quiver(X_stacked, V, style='scatter', num_points=None):
     fig = plt.figure(figsize=(6, 6))
     ax = fig.add_subplot(111, projection='3d')
 
-    Xn, Vn = _unit_cube_transform(X_stacked, V, x_range, u_range, p_range)
+    Xn, Vn = _unit_cube_transform(X_stacked, V, x_range, u_range, p_range, mode=mode)
     if style == "lines":
         num_traj = X_stacked.shape[1] // num_points
         Xn_traj = Xn.reshape(3, num_traj, num_points)
@@ -140,7 +145,7 @@ def scaled_3D_quiver(X_stacked, V, style='scatter', num_points=None):
     return fig, ax
 
 # Small wrapper for the scaled_3D_quiver function to plot integrated trajectories.
-def scaled_3D_quiver_trajectories(X_stacked, normal_fn, style="lines", num_points=None):
+def scaled_3D_quiver_trajectories(X_stacked, normal_fn, style="lines", num_points=None, mode="normal"):
     """
     Plot integrated trajectories with their normal field.
 
@@ -148,7 +153,7 @@ def scaled_3D_quiver_trajectories(X_stacked, normal_fn, style="lines", num_point
     _concatenate_trajectories. The normal field is computed via normal_fn(x, u).
     """
     V = normal_fn(X_stacked[0], X_stacked[1])
-    return scaled_3D_quiver(X_stacked, V, style=style, num_points=num_points)
+    return scaled_3D_quiver(X_stacked, V, style=style, num_points=num_points, mode=mode)
 
 
 

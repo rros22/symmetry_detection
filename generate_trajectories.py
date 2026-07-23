@@ -228,7 +228,7 @@ def _get_args():
     parser.add_argument(
         "--ode",
         choices = ODES.keys(),
-        default = "scaling",
+        default = "bernoulli",
         help = "Name of the ODE to solve (default: bernoulli)"
     )
 
@@ -312,15 +312,12 @@ def main():
         (x_min, x_max), (u_min, u_max), (p_grid_min, p_grid_max),
     )
     fig3, ax4 = db.scaled_3D_quiver_trajectories(
-        X, NORMALS[args.ode],
-        (x_min, x_max), (u_min, u_max), (p_traj_min, p_traj_max),
-    )
+        X, NORMALS[args.ode], style='lines')
     
     # Plotting
     ax0.plot_surface(X_grid,U_grid,P_grid, cmap='coolwarm')
 
     for trajectory in X:
-        # ax0.plot(trajectory[0,:], trajectory[1,:], trajectory[2,:], color='k')
         ax1.plot(trajectory[0,:], trajectory[1,:], trajectory[2,:])
         ax2.plot(trajectory[0,:], trajectory[1,:])
 

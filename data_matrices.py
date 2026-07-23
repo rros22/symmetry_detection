@@ -179,13 +179,27 @@ if __name__ == "__main__":
 
     # 5. Plot the trajectories and the reconstructed vector field
     xi, eta, zeta = bf.characteristic_functions(L, L_x, L_u, P, Vt[idx, :])
-    print(Vt[idx, :])
 
     ax[1].quiver(X_stacked[0], X_stacked[1], xi, eta, angles='xy',scale=20,scale_units='xy')
     ax[1].set_box_aspect(1)
 
     for trajectory in X:
         ax[1].plot(trajectory[0], trajectory[1])
+
+    # 6. Plot the jet space reconstructed tangent field
+    V = np.stack((xi,eta,zeta))
+    print(f"The shape of V is {V.shape}")
+    print(f"The shape of X_stacked is {X_stacked.shape}")
+
+    fig2 = plt.figure()
+    ax2 = fig2.add_subplot(111, projection='3d')
+    ax2.scatter(X_stacked[0],X_stacked[1],X_stacked[2])
+    ax2.quiver(X_stacked[0],X_stacked[1],X_stacked[2], V[0], V[1], V[2], normalize=True, length=0.6, color='k', alpha=0.3)
+
+    
+
+
+
     plt.show()
     
    

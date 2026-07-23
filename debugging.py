@@ -41,6 +41,15 @@ def print_configuration_rich(ode_name, x_start, x_end, initial_conditions, num_p
     console.print(table)
 
 # Plots
+def compute_data_range(X):
+    # X is the full (num_traj, num_dimensions, num_points) matrix, not the stacked one
+    if len(X.shape) != 3:
+        raise ValueError(f"The dimension of the provided array is {len(X.shape)}. It does not match the expected dimension of 3.")
+    x_range = (X[:, 0].min(), X[:, 0].max())
+    u_range = (X[:, 1].min(), X[:, 1].max())
+    p_range = (X[:, 2].min(), X[:, 2].max())
+
+    return x_range, u_range, p_range
 
 def _unit_cube_transform(X, U, P, N, x_range, u_range, p_range):
     spans = np.array([
@@ -78,7 +87,7 @@ def scaled_3D_quiver_surface(X_grid, U_grid, P_grid, N, x_range, u_range, p_rang
     return fig, ax
 
 
-def scaled_3D_quiver_trajectories(X, normal_fn, x_range, u_range, p_range, *, style="lines"):
+def scaled_3D_quiver_trajectories(X, normal_fn, style="lines"):
     """
     Plot integrated trajectories with their normal field.
 
@@ -87,6 +96,9 @@ def scaled_3D_quiver_trajectories(X, normal_fn, x_range, u_range, p_range, *, st
     """
     if style not in ("lines", "scatter"):
         raise ValueError(f"style must be 'lines' or 'scatter', got {style!r}")
+    
+    # Compute data range
+    x_range, u_range, p_range = compute_data_range(X)
 
     x = X[:, 0]
     u = X[:, 1]
@@ -106,3 +118,37 @@ def scaled_3D_quiver_trajectories(X, normal_fn, x_range, u_range, p_range, *, st
     _finish_3d_plot(ax)
 
     return fig, ax
+
+def scaled_3D_quiver(X, V, style='scatter'):
+    # Compute data range
+    x_range, u_range, p_range = compute_data_range(X)
+
+    # Extract coordinates
+    x = X[:, 0]
+    u = X[:, 1]
+    p = X[:, 2]
+
+    print(f"The number of trajectories is {X.shape[0]}")
+
+    traj_length = X.shape[2]
+    traj_no = X.shape[0]
+
+    # Temporary reshape, need to standardise this.
+    V = np.array([V[:,traj_length*i:traj_length*(i+1)] for i in range(0,traj_no)]).transpose(1,0,2)
+
+    fig = plt.figure(figsize=(6, 6))
+    ax = fig.add_subplot(111, projection='3d')
+
+    Xn, Un, Pn, Vn = _unit_cube_transform(x, u, p, V, x_range, u_range, p_range)
+    if style == "lines":
+        for i in range(Xn.shape[0]):
+            ax.plot(Xn[i], Un[i], Pn[i], color='C0', linewidth=1.0)
+    else:
+        ax.scatter(Xn.ravel(), Un.ravel(), Pn.ravel(), color='C0', s=8, alpha=0.6)
+    ax.quiver(Xn, Un, Pn, Vn[0], Vn[1], Vn[2], normalize=True, length=0.08, color='k', alpha=0.3)
+    _finish_3d_plot(ax)
+
+    return fig, ax
+
+
+

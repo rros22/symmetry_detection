@@ -78,7 +78,7 @@ def characteristic_functions(L, L_x, L_u, P, coeffs):
     # Compute the characteristic functions
     xi = L.T@xi_coeffs
     eta = L.T@eta_coeffs
-    zeta = L_x.T@eta_coeffs + (L_u.T@eta_coeffs - L_x.T@xi_coeffs)@P - (L_u.T@xi_coeffs)@P@P
+    zeta = -P @ (P @ L_u.T + L_x.T) @ xi_coeffs + (P @ L_u.T + L_x.T) @ eta_coeffs
 
     return xi, eta, zeta
 

@@ -21,14 +21,6 @@ from matplotlib import pyplot as plt
           If the parameter range or list contains invalid parameters, then the function will raise an error.
 """
 
-# For synthetically generated trajectories, the X matrix needs to be flattened into a 2D array of shape (num_dimension, num_traj * num_points).
-def _concatenate_trajectories(X):
-    """
-    Flattens 3D trajectories (num_traj, state_dim, num_points) into a 2D matrix (state_dim, num_traj * num_points).
-    """
-    num_traj, state_dim, num_pts = X.shape
-    return X.transpose(1, 0, 2).reshape(state_dim, -1)
-
 def _validate_parameters(basis_type="monomial", param_range=(0, 3), param_list=None):
     # 1. Validate basis type
     if basis_type not in bf.BASIS_FUNCTIONS:
@@ -163,7 +155,7 @@ if __name__ == "__main__":
     # 1. Generate data
     initial_conditions = np.linspace(1,2,6)
     X = gtr.generate_equation_manifold(ode_name=ode_name, x_start=1, x_end=7, initial_conditions=initial_conditions, num_points=50, method="RK45")
-    X_stacked = _concatenate_trajectories(X)
+    X_stacked = gtr.concatenate_trajectories(X)
     N = gtr.NORMALS[ode_name](X_stacked[0], X_stacked[1])
 
     # 2. Construct the G matrix

@@ -219,6 +219,14 @@ def generate_equation_manifold(ode_name, x_start=1, x_end=7, initial_conditions=
 
     return np.array(trajectories)
 
+# For synthetically generated trajectories, the X matrix needs to be flattened into a 2D array of shape (num_dimension, num_traj * num_points).
+def concatenate_trajectories(X):
+    """
+    Flattens 3D trajectories (num_traj, state_dim, num_points) into a 2D matrix (state_dim, num_traj * num_points).
+    """
+    num_traj, state_dim, num_pts = X.shape
+    return X.transpose(1, 0, 2).reshape(state_dim, -1)
+
 # CLI Tooling (Only runs when executed as main)
 def _get_args():
     """
@@ -311,8 +319,9 @@ def main():
         X_grid, U_grid, P_grid, NORMALS[args.ode](X_grid,U_grid),
         (x_min, x_max), (u_min, u_max), (p_grid_min, p_grid_max),
     )
+    X_stacked = concatenate_trajectories(X)
     fig3, ax4 = db.scaled_3D_quiver_trajectories(
-        X, NORMALS[args.ode], style='lines')
+        X_stacked, NORMALS[args.ode], style='lines', num_points=args.num_points)
     
     # Plotting
     ax0.plot_surface(X_grid,U_grid,P_grid, cmap='coolwarm')

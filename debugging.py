@@ -42,26 +42,42 @@ def print_configuration_rich(ode_name, x_start, x_end, initial_conditions, num_p
 
 # Plots
 def compute_data_range(X):
-    # X is the full (num_traj, num_dimensions, num_points) matrix, not the stacked one
-    if len(X.shape) != 3:
-        raise ValueError(f"The dimension of the provided array is {len(X.shape)}. It does not match the expected dimension of 3.")
-    x_range = (X[:, 0].min(), X[:, 0].max())
-    u_range = (X[:, 1].min(), X[:, 1].max())
-    p_range = (X[:, 2].min(), X[:, 2].max())
+    if len(X.shape) == 2:
+        if X.shape[0] != 3:
+            raise ValueError(
+                f"Stacked X must have shape (3, n_points), got {X.shape}."
+            )
+        x_range = (X[0].min(), X[0].max())
+        u_range = (X[1].min(), X[1].max())
+        p_range = (X[2].min(), X[2].max())
+    elif len(X.shape) == 3:
+        x_range = (X[:, 0].min(), X[:, 0].max())
+        u_range = (X[:, 1].min(), X[:, 1].max())
+        p_range = (X[:, 2].min(), X[:, 2].max())
+    else:
+        raise ValueError(
+            f"The dimension of the provided array is {len(X.shape)}. "
+            "Expected 2 (stacked) or 3 (trajectory) dimensions."
+        )
 
     return x_range, u_range, p_range
 
-def _unit_cube_transform(X, U, P, N, x_range, u_range, p_range):
+def _unit_cube_transform(X, N, x_range, u_range, p_range):
+    """
+    Normalize coordinates to the unit cube and scale normal components.
+
+    X and N have shape (3, ...) with rows (x, u, p) and normal components.
+    """
+    mins = np.array([x_range[0], u_range[0], p_range[0]])
     spans = np.array([
         x_range[1] - x_range[0],
         u_range[1] - u_range[0],
         p_range[1] - p_range[0],
     ])
-    Xn = (X - x_range[0]) / spans[0]
-    Un = (U - u_range[0]) / spans[1]
-    Pn = (P - p_range[0]) / spans[2]
-    Nn = N * spans[:, np.newaxis, np.newaxis]
-    return Xn, Un, Pn, Nn
+    broadcast = (3,) + (1,) * (X.ndim - 1)
+    Xn = (X - mins.reshape(broadcast)) / spans.reshape(broadcast)
+    Nn = N * spans.reshape(broadcast)
+    return Xn, Nn
 
 
 def _finish_3d_plot(ax):
@@ -79,76 +95,60 @@ def scaled_3D_quiver_surface(X_grid, U_grid, P_grid, N, x_range, u_range, p_rang
     fig = plt.figure(figsize=(6, 6))
     ax = fig.add_subplot(111, projection='3d')
 
-    Xn, Un, Pn, Nn = _unit_cube_transform(X_grid, U_grid, P_grid, N, x_range, u_range, p_range)
-    ax.plot_surface(Xn, Un, Pn, cmap='coolwarm')
-    ax.quiver(Xn, Un, Pn, Nn[0], Nn[1], Nn[2], normalize=True, length=0.08, color='k', alpha=0.3)
+    X_stacked = np.stack([X_grid, U_grid, P_grid], axis=0)
+    Xn, Nn = _unit_cube_transform(X_stacked, N, x_range, u_range, p_range)
+    ax.plot_surface(Xn[0], Xn[1], Xn[2], cmap='coolwarm')
+    ax.quiver(Xn[0], Xn[1], Xn[2], Nn[0], Nn[1], Nn[2], normalize=True, length=0.08, color='k', alpha=0.3)
     _finish_3d_plot(ax)
 
     return fig, ax
 
 
-def scaled_3D_quiver_trajectories(X, normal_fn, style="lines"):
+def scaled_3D_quiver(X_stacked, V, style='scatter', num_points=None):
+    """
+    Plot stacked trajectory points with a vector field.
+
+    X_stacked and V have shape (3, n_points) with rows (x, u, p) and vector components.
+    style: "lines" plots each trajectory as a curve; "scatter" plots all sample points.
+    num_points: points per trajectory; required when style='lines'.
+    """
+    if X_stacked.ndim != 2 or X_stacked.shape[0] != 3:
+        raise ValueError(f"X_stacked must have shape (3, n_points), got {X_stacked.shape}.")
+    if V.shape != X_stacked.shape:
+        raise ValueError(f"V must have the same shape as X_stacked, got {V.shape} vs {X_stacked.shape}.")
+    if style not in ("lines", "scatter"):
+        raise ValueError(f"style must be 'lines' or 'scatter', got {style!r}")
+    if style == "lines" and num_points is None:
+        raise ValueError("num_points is required when style='lines'.")
+
+    x_range, u_range, p_range = compute_data_range(X_stacked)
+
+    fig = plt.figure(figsize=(6, 6))
+    ax = fig.add_subplot(111, projection='3d')
+
+    Xn, Vn = _unit_cube_transform(X_stacked, V, x_range, u_range, p_range)
+    if style == "lines":
+        num_traj = X_stacked.shape[1] // num_points
+        Xn_traj = Xn.reshape(3, num_traj, num_points)
+        for i in range(num_traj):
+            ax.plot(Xn_traj[0, i], Xn_traj[1, i], Xn_traj[2, i], color='C0', linewidth=1.0)
+    else:
+        ax.scatter(Xn[0], Xn[1], Xn[2], color='C0', s=8, alpha=0.6)
+    ax.quiver(Xn[0], Xn[1], Xn[2], Vn[0], Vn[1], Vn[2], normalize=True, length=0.08, color='k', alpha=0.3)
+    _finish_3d_plot(ax)
+
+    return fig, ax
+
+# Small wrapper for the scaled_3D_quiver function to plot integrated trajectories.
+def scaled_3D_quiver_trajectories(X_stacked, normal_fn, style="lines", num_points=None):
     """
     Plot integrated trajectories with their normal field.
 
-    X has shape (n_trajectories, 3, m_points) with rows (x, u, p).
-    style: "lines" plots each trajectory as a curve; "scatter" plots all sample points.
+    X_stacked has shape (3, n_points) with rows (x, u, p), as produced by
+    _concatenate_trajectories. The normal field is computed via normal_fn(x, u).
     """
-    if style not in ("lines", "scatter"):
-        raise ValueError(f"style must be 'lines' or 'scatter', got {style!r}")
-    
-    # Compute data range
-    x_range, u_range, p_range = compute_data_range(X)
-
-    x = X[:, 0]
-    u = X[:, 1]
-    p = X[:, 2]
-    N = normal_fn(x, u)
-
-    fig = plt.figure(figsize=(6, 6))
-    ax = fig.add_subplot(111, projection='3d')
-
-    Xn, Un, Pn, Nn = _unit_cube_transform(x, u, p, N, x_range, u_range, p_range)
-    if style == "lines":
-        for i in range(Xn.shape[0]):
-            ax.plot(Xn[i], Un[i], Pn[i], color='C0', linewidth=1.0)
-    else:
-        ax.scatter(Xn.ravel(), Un.ravel(), Pn.ravel(), color='C0', s=8, alpha=0.6)
-    ax.quiver(Xn, Un, Pn, Nn[0], Nn[1], Nn[2], normalize=True, length=0.08, color='k', alpha=0.3)
-    _finish_3d_plot(ax)
-
-    return fig, ax
-
-def scaled_3D_quiver(X, V, style='scatter'):
-    # Compute data range
-    x_range, u_range, p_range = compute_data_range(X)
-
-    # Extract coordinates
-    x = X[:, 0]
-    u = X[:, 1]
-    p = X[:, 2]
-
-    print(f"The number of trajectories is {X.shape[0]}")
-
-    traj_length = X.shape[2]
-    traj_no = X.shape[0]
-
-    # Temporary reshape, need to standardise this.
-    V = np.array([V[:,traj_length*i:traj_length*(i+1)] for i in range(0,traj_no)]).transpose(1,0,2)
-
-    fig = plt.figure(figsize=(6, 6))
-    ax = fig.add_subplot(111, projection='3d')
-
-    Xn, Un, Pn, Vn = _unit_cube_transform(x, u, p, V, x_range, u_range, p_range)
-    if style == "lines":
-        for i in range(Xn.shape[0]):
-            ax.plot(Xn[i], Un[i], Pn[i], color='C0', linewidth=1.0)
-    else:
-        ax.scatter(Xn.ravel(), Un.ravel(), Pn.ravel(), color='C0', s=8, alpha=0.6)
-    ax.quiver(Xn, Un, Pn, Vn[0], Vn[1], Vn[2], normalize=True, length=0.08, color='k', alpha=0.3)
-    _finish_3d_plot(ax)
-
-    return fig, ax
+    V = normal_fn(X_stacked[0], X_stacked[1])
+    return scaled_3D_quiver(X_stacked, V, style=style, num_points=num_points)
 
 
 

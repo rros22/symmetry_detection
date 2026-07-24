@@ -159,7 +159,7 @@ ODE_DEFAULTS = {
         "x_end": 2,
         "initial_conditions": np.linspace(0.1, 2, 15),
         "initial_condition": 1.0,
-        "num_points": 2000,
+        "num_points": 30,
         "method": "RK45",
     },
     "abel": {
@@ -167,7 +167,7 @@ ODE_DEFAULTS = {
         "x_end": 0.09,
         "initial_conditions": np.linspace(-2, 2, 200),
         "initial_condition": 0.0,
-        "num_points": 200,
+        "num_points": 50,
         "method": "RK45",
     },
 }
@@ -236,7 +236,7 @@ def _get_args():
     parser.add_argument(
         "--ode",
         choices = ODES.keys(),
-        default = "bernoulli",
+        default = "abel",
         help = "Name of the ODE to solve (default: bernoulli)"
     )
 

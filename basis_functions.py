@@ -14,9 +14,13 @@ def monomial_bf(x, u, m, n):
     return x**m * u**n
 
 def monomial_bf_dx(x, u, m, n):
+    if m == 0:
+        return np.zeros_like(x * u, dtype=float)
     return m * x**(m - 1) * u**n
 
 def monomial_bf_du(x, u, m, n):
+    if n == 0:
+        return np.zeros_like(x * u, dtype=float)
     return n * x**m * u**(n - 1)
 
 """

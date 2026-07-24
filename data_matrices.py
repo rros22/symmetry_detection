@@ -150,17 +150,33 @@ def G_matrix(X_stacked, N, basis_type="monomial", param_range=(0, 3), param_list
 if __name__ == "__main__":
     # Test the full symmetry detection null space problem on the rational equation with rotational symmetry.
     # 0. Define parameters
-    ode_name = "rational"
+    ode_name = "bernoulli"
     basis_type="monomial"
+
+    integration_params = gtr.ODE_DEFAULTS[ode_name]
+    x_start = integration_params["x_start"]
+    x_end = integration_params["x_end"]
+    initial_conditions = integration_params["initial_conditions"]
+    num_points = integration_params["num_points"]
+    method = integration_params["method"]
     
     # 1. Generate data
-    initial_conditions = np.linspace(1,2,6)
-    X = gtr.generate_equation_manifold(ode_name=ode_name, x_start=1, x_end=7, initial_conditions=initial_conditions, num_points=50, method="RK45")
+    X = gtr.generate_equation_manifold(
+        ode_name=ode_name, 
+        x_start=x_start, 
+        x_end=x_end, 
+        initial_conditions=initial_conditions, 
+        num_points=num_points, 
+        method=method
+    )
+
+    print("Everything is working so far")
+    
     X_stacked = gtr.concatenate_trajectories(X)
     N = gtr.NORMALS[ode_name](X_stacked[0], X_stacked[1])
 
     # 2. Construct the G matrix
-    G, L, L_x, L_u, P  = G_matrix(X_stacked, N, basis_type=basis_type, param_range=(0, 1), param_list=None)
+    G, L, L_x, L_u, P  = G_matrix(X_stacked, N, basis_type=basis_type, param_range=(-2, 1), param_list=None)
 
     # 3. Solve the null space problem (on G transposed) using the SVD
     U,S,Vt = svd(G.T)
@@ -190,6 +206,7 @@ if __name__ == "__main__":
     # ax2.quiver(X_stacked[0],X_stacked[1],X_stacked[2], V[0], V[1], V[2], normalize=True, length=0.6, color='k', alpha=0.3)
     
     fig2, ax2 = db.scaled_3D_quiver(X_stacked, V, mode="tangent")
+    fig2, ax2 = db.scaled_3D_quiver(X_stacked, N, mode="normal")
     
 
 
